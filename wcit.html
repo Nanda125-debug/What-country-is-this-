@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>What country is this? - Beta</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(to bottom, #001f3f, #003366);
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      animation: fadeIn 1s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .container {
+      background-color: #111;
+      padding: 20px;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 400px;
+      text-align: center;
+      animation: pop 0.6s ease;
+    }
+    @keyframes pop {
+      0% { transform: scale(0.8); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    h1, h2 {
+      color: #00bfff;
+    }
+    button, input, select {
+      margin: 5px;
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 6px;
+      border: none;
+      transition: all 0.2s ease;
+    }
+    input, select {
+      width: 90%;
+    }
+    button {
+      background-color: #007acc;
+      color: white;
+    }
+    button:hover {
+      background-color: #005fa3;
+      transform: scale(1.05);
+    }
+    .correct { color: lightgreen; }
+    .wrong { color: red; }
+    .hidden { display: none; }
+    #updateBox, #feedbackBox, #leaderboardBox, #creditBox, #clueBox {
+      background-color: #222;
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 10px;
+      display: none;
+    }
+    .bgm-toggle { background-color: red; }
+    .bgm-on { background-color: green !important; }
+  </style>
+</head>
+<body>
+  <div class="container hidden" id="login">
+    <h1>Login</h1>
+    <input type="text" id="username" placeholder="Username"><br>
+    <input type="password" id="password" placeholder="Password"><br>
+    <button onclick="validateLogin()">Masuk</button>
+  </div>
+
+  <div class="container hidden" id="registerBox">
+    <h1>Daftar Akun</h1>
+    <input type="text" id="newUsername" placeholder="Buat Username"><br>
+    <input type="password" id="newPassword" placeholder="Buat Password"><br>
+    <button onclick="registerUser()">Daftar</button>
+  </div>
+
+  <div class="container hidden" id="menu">
+    <h1>What country is this?</h1>
+    <p><strong>Versi 2.3 Beta</strong><br>Update: 15 April 2025</p>
+    <label for="chapter">Bab:</label>
+    <select id="chapter" onchange="checkChapterAccess()">
+      <option value="1">Bab 1: Negara</option>
+      <option value="2">Bab 2: Sejarah Kerajaan</option>
+    </select><br>
+    <label for="mode">Mode:</label>
+    <select id="mode">
+      <option value="normal">Normal</option>
+      <option value="practice">Practice</option>
+      <option value="hard">Hard</option>
+    </select><br>
+    <button onclick="startGame()">Play</button>
+    <button onclick="showClue()">Clue</button>
+    <button onclick="showUpdate()">New Update</button>
+    <button onclick="showFeedback()">Feedback</button>
+    <button onclick="showLeaderboard()">Leaderboard</button>
+    <button onclick="showCredit()">Credit</button>
+    <button id="bgmToggle" class="bgm-toggle" onclick="toggleBGM()">BGM: Off</button>
+
+    <div id="updateBox">
+      <p>- Bab 2 hanya terbuka jika Bab 1 selesai<br>- Clue terbatas 3x per akun<br>- Nyawa sekarang 3<br>- Pesan khusus saat Game Over</p>
+    </div>
+    <div id="clueBox">
+      <p>Sisa Clue: <span id="clueLeft"></span></p>
+    </div>
+    <div id="feedbackBox">
+      <p>Jika ada bug, saran, kritik, segera laporkan ke:<br><strong>nandasyahputra0572@gmail.com</strong></p>
+    </div>
+    <div id="leaderboardBox">
+      <h3>Top Skor</h3>
+      <div id="leaderList">Belum ada data.</div>
+    </div>
+    <div id="creditBox">
+      <p>Dibuat oleh: <strong>Nanda Syahputra</strong></p>
+    </div>
+  </div>
+
+  <div class="container hidden" id="game">
+    <p>Level: <span id="level">1</span> | Skor: <span id="score">0</span><br>
+      Nyawa: <span id="lives">3</span> | Waktu: <span id="time">30</span>s</p>
+    <h2 id="question"></h2>
+    <input type="text" id="answer" placeholder="Jawaban..."><br>
+    <button onclick="checkAnswer()">Jawab</button>
+    <button onclick="resetGame()">Reset</button>
+    <button onclick="backToMenu()">Back to Menu</button>
+    <div id="result"></div>
+  </div>
+
+  <audio id="bgm" loop>
+    <source src="bgm.mp3" type="audio/mpeg">
+  </audio>
+
+<script>
+let currentUser = "", currentChapter = 1;
+let score = 0, level = 1, lives = 3, clueUsed = 0, timer = null, timeLeft = 30;
+let questionPool = [];
+
+let questionsBab1 = [
+  { q: "Apa ibu kota Jepang?", a: "tokyo" },
+  { q: "Negara dengan Menara Eiffel?", a: "prancis" },
+  { q: "Negara dengan Piramida?", a: "mesir" },
+  { q: "Negara dengan Great Wall?", a: "cina" },
+  { q: "Negara dengan Colosseum?", a: "italia" },
+  { q: "Negara asal kangguru?", a: "australia" },
+  { q: "Negara dengan Taj Mahal?", a: "india" },
+  { q: "Negara terluas di dunia?", a: "rusia" }
+];
+
+let questionsBab2 = [
+  { q: "Kerajaan terbesar di Indonesia?", a: "majapahit" },
+  { q: "Raja terkenal dari Mataram?", a: "sultan agung" },
+  { q: "Kerajaan Islam pertama di Indonesia?", a: "samudra pasai" },
+  { q: "Kerajaan terkenal di Kalimantan?", a: "kutai" }
+];
+
+window.onload = () => {
+  if (localStorage.getItem("firstRunDone")) {
+    document.getElementById("registerBox").classList.add("hidden");
+    document.getElementById("login").classList.remove("hidden");
+  } else {
+    localStorage.setItem("firstRunDone", "true");
+  }
+};
+
+function registerUser() {
+  let u = document.getElementById("newUsername").value.trim();
+  let p = document.getElementById("newPassword").value.trim();
+  if (!u || !p) return alert("Lengkapi semua data");
+  if (localStorage.getItem("user_" + u)) return alert("Username sudah digunakan");
+  localStorage.setItem("user_" + u, JSON.stringify({ password: p, score: 0, clue: 3, bab2: false }));
+  alert("Akun berhasil dibuat. Silakan login.");
+  document.getElementById("registerBox").classList.add("hidden");
+  document.getElementById("login").classList.remove("hidden");
+}
+
+function validateLogin() {
+  let u = document.getElementById("username").value;
+  let p = document.getElementById("password").value;
+  let data = localStorage.getItem("user_" + u);
+  if (data && JSON.parse(data).password === p) {
+    currentUser = u;
+    document.getElementById("login").classList.add("hidden");
+    document.getElementById("menu").classList.remove("hidden");
+  } else {
+    if(u === "Nanda" && p === "nanda") {
+      currentUser = "Nanda";
+      document.getElementById("login").classList.add("hidden");
+      document.getElementById("menu").classList.remove("hidden");
+      alert("Selamat datang Admin!");
+    } else {
+      alert("Login gagal");
+    }
+  }
+}
+
+function checkChapterAccess() {
+  let ch = document.getElementById("chapter").value;
+  let data = JSON.parse(localStorage.getItem("user_" + currentUser));
+  if (ch == 2 && !data.bab2 && currentUser !== "Nanda") {
+    alert("Bab 2 terkunci. Selesaikan Bab 1 dulu!");
+    document.getElementById("chapter").value = "1";
+  } else {
+    currentChapter = parseInt(ch);
+  }
+}
+
+function startGame() {
+  let mode = document.getElementById("mode").value;
+  let data = JSON.parse(localStorage.getItem("user_" + currentUser));
+  clueUsed = 3 - data.clue;
+  questionPool = [...(currentChapter === 1 ? questionsBab1 : questionsBab2)];
+  shuffleArray(questionPool);
+  level = 1;
+  score = 0;
+  lives = 3;
+  document.getElementById("menu").classList.add("hidden");
+  document.getElementById("game").classList.remove("hidden");
+  showQuestion();
+}
+
+function showQuestion() {
+  if (level > questionPool.length) return winGame();
+  document.getElementById("level").innerText = level;
+  document.getElementById("score").innerText = score;
+  document.getElementById("lives").innerText = lives;
+  document.getElementById("question").innerText = questionPool[level - 1].q;
+  document.getElementById("answer").value = "";
+  document.getElementById("result").innerText = "";
+  startTimer();
+}
+
+function checkAnswer() {
+  let ans = document.getElementById("answer").value.toLowerCase();
+  let correct = questionPool[level - 1].a;
+  if (ans === correct) {
+    score += 10;
+    level++;
+    clearInterval(timer);
+    document.getElementById("result").innerHTML = "<span class='correct'>✔ Benar!</span>";
+    setTimeout(showQuestion, 1000);
+  } else {
+    lives--;
+    document.getElementById("lives").innerText = lives;
+    document.getElementById("result").innerHTML = "<span class='wrong'>❌ Salah!</span>";
+    if (lives <= 0) gameOver();
+  }
+}
+
+function startTimer() {
+  clearInterval(timer);
+  timeLeft = 30;
+  document.getElementById("time").innerText = timeLeft;
+  timer = setInterval(() => {
+    timeLeft--;
+    document.getElementById("time").innerText = timeLeft;
+    if (timeLeft <= 0) {
+      clearInterval(timer);
+      gameOver();
+    }
+  }, 1000);
+}
+
+function gameOver() {
+  clearInterval(timer);
+  alert("Dongo lu. Game Over. Kembali ke Bab 1.");
+  document.getElementById("chapter").value = "1";
+  currentChapter = 1;
+  backToMenu();
+}
+
+function winGame() {
+  clearInterval(timer);
+  alert("Selamat! Bab selesai.");
+  let data = JSON.parse(localStorage.getItem("user_" + currentUser));
+  data.score = Math.max(data.score, score);
+  if (currentChapter === 1) data.bab2 = true;
+  localStorage.setItem("user_" + currentUser, JSON.stringify(data));
+  backToMenu();
+}
+
+function resetGame() {
+  if (confirm("Ulang game ini?")) {
+    clearInterval(timer);
+    startGame();
+  }
+}
+
+function backToMenu() {
+  document.getElementById("game").classList.add("hidden");
+  document.getElementById("menu").classList.remove("hidden");
+}
+
+function showClue() {
+  let data = JSON.parse(localStorage.getItem("user_" + currentUser));
+  alert("Sisa clue kamu: " + data.clue);
+  document.getElementById("clueLeft").innerText = data.clue;
+  document.getElementById("clueBox").style.display = "block";
+}
+
+function showUpdate() { hideMenus(); document.getElementById("updateBox").style.display = "block"; }
+function showFeedback() { hideMenus(); document.getElementById("feedbackBox").style.display = "block"; }
+function showLeaderboard() {
+  hideMenus();
+  let html = "";
+  for (let key in localStorage) {
+    if (key.startsWith("user_")) {
+      let data = JSON.parse(localStorage.getItem(key));
+      let name = key.replace("user_", "");
+      html += `${name}: ${data.score}<br>`;
+    }
+  }
+  document.getElementById("leaderList").innerHTML = html || "Belum ada data.";
+}
+function showCredit() { hideMenus(); document.getElementById("creditBox").style.display = "block"; }
+function hideMenus() {
+  document.getElementById("updateBox").style.display = "none";
+  document.getElementById("feedbackBox").style.display = "none";
+  document.getElementById("leaderboardBox").style.display = "none";
+  document.getElementById("creditBox").style.display = "none";
+  document.getElementById("clueBox").style.display = "none";
+}
+function toggleBGM() {
+  let bgm = document.getElementById("bgm");
+  let toggleBtn = document.getElementById("bgmToggle");
+  if (bgm.paused) {
+    bgm.play(); toggleBtn.classList.add("bgm-on"); toggleBtn.innerText = "BGM: On";
+  } else {
+    bgm.pause(); toggleBtn.classList.remove("bgm-on"); toggleBtn.innerText = "BGM: Off";
+  }
+}
+function shuffleArray(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    let j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+</script>
+</body>
+</html>
